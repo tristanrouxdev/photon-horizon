@@ -1,0 +1,5 @@
+GPL-3.0-or-later
+
+Photon Horizon for Horizon Launcher
+- Overworld, Nether, Lighting, Clouds, Water & Post-Processing ported and adapted from Photon Shaders by SixthSurge (https://github.com/sixthsurge/photon, GPL-3.0).
+- The End Sky (Giant Ringed Planet, Gravitational-Lensed Black Hole & Accretion Disc, End Fog) ported and adapted from IterationT by Tahnass (EndSky.glsl).

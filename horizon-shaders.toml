@@ -1,0 +1,462 @@
+schema = 1
+id = "photon_horizon"
+name = "Photon + IterationT End (Horizon)"
+version = "1.0.0"
+api = "0.1"
+description = "Portage de Photon Shaders (SixthSurge) pour l'Overworld/Nether combiné avec le ciel de l'End d'IterationT (Tahnass : planète géante à anneaux, trou noir à lentille gravitationnelle et disque d'accrétion) pour Horizon."
+authors = ["SixthSurge", "Tahnass", "PEPITO"]
+license = "MIT"
+shared = ["common.wgsl"]
+
+[sky]
+file = "sky.wgsl"
+name = "Photon Sky, Clouds & Aurora"
+sun = false
+clouds = false
+stars = false
+
+[material]
+file = "material.wgsl"
+name = "Photon PBR, Shadows & Water"
+fog = false
+
+[vertex]
+file = "vertex.wgsl"
+name = "Photon Wind & Waves"
+
+[weather]
+file = "weather.wgsl"
+name = "Photon Weather"
+
+[shadow]
+option = "shadows"
+resolution_option = "shadow_resolution"
+distance_option = "shadow_distance"
+resolution = 2048
+distance = 128.0
+solid_materials = [1]
+
+[reflection]
+option = "water_reflections"
+
+[[post]]
+file = "post/end_and_atmosphere.wgsl"
+name = "IterationT End & Atmosphere"
+
+[[post]]
+file = "post/bloom_prefilter.wgsl"
+name = "Bloom Prefilter"
+output = "bloom_a"
+scale = 0.25
+
+[[post]]
+file = "post/bloom_blur.wgsl"
+name = "Bloom Blur"
+output = "bloom_b"
+scale = 0.25
+
+[[post]]
+file = "post/composite.wgsl"
+name = "Photon Tonemap & Grade"
+
+[[post]]
+file = "post/fxaa.wgsl"
+name = "FXAA & CAS"
+
+[budget]
+gpu_ms = 3.5
+
+# --- Materials ---
+
+[[materials]]
+id = 1
+sprites = ["block/*_leaves", "block/*leaves"]
+
+[[materials]]
+id = 2
+sprites = [
+    "block/short_grass", "block/grass", "block/short_dry_grass", "block/tall_dry_grass",
+    "block/fern", "block/bush", "block/dead_bush", "block/firefly_bush", "block/*_sapling",
+    "block/dandelion", "block/poppy", "block/blue_orchid", "block/allium", "block/azure_bluet",
+    "block/*_tulip", "block/oxeye_daisy", "block/cornflower", "block/lily_of_the_valley",
+    "block/wither_rose", "block/torchflower", "block/closed_eyeblossom", "block/open_eyeblossom",
+    "block/wheat_stage*", "block/carrots_stage*", "block/potatoes_stage*", "block/beetroots_stage*",
+    "block/sweet_berry_bush_stage*"
+]
+
+[[materials]]
+id = 3
+sprites = [
+    "block/tall_grass_bottom", "block/large_fern_bottom", "block/sunflower_bottom",
+    "block/lilac_bottom", "block/rose_bush_bottom", "block/peony_bottom", "block/pitcher_plant_bottom"
+]
+
+[[materials]]
+id = 4
+sprites = [
+    "block/tall_grass_top", "block/large_fern_top", "block/sunflower_top", "block/sunflower_front",
+    "block/sunflower_back", "block/lilac_top", "block/rose_bush_top", "block/peony_top",
+    "block/pitcher_plant_top"
+]
+
+[[materials]]
+id = 5
+sprites = ["block/vine", "block/cave_vines*", "block/weeping_vines*", "block/twisting_vines*"]
+
+# --- Coloured Block Lights (Photon LPV palette) ---
+
+[[lights]]
+color = [1.0, 0.60, 0.28]
+blocks = ["torch", "wall_torch", "lantern", "campfire", "fire", "jack_o_lantern", "*candle*", "furnace", "smoker", "blast_furnace"]
+
+[[lights]]
+color = [0.30, 0.78, 1.0]
+blocks = ["soul_*"]
+
+[[lights]]
+color = [1.0, 0.20, 0.12]
+blocks = ["redstone_torch", "redstone_wall_torch", "redstone_lamp", "redstone_ore", "deepslate_redstone_ore"]
+
+[[lights]]
+color = [1.0, 0.40, 0.08]
+blocks = ["lava", "magma_block"]
+
+[[lights]]
+color = [1.0, 0.84, 0.52]
+blocks = ["glowstone", "shroomlight", "ochre_froglight"]
+
+[[lights]]
+color = [0.58, 0.94, 1.0]
+blocks = ["sea_lantern", "beacon", "conduit"]
+
+[[lights]]
+color = [0.78, 0.42, 1.0]
+blocks = ["amethyst_cluster", "*_amethyst_bud", "crying_obsidian", "nether_portal", "respawn_anchor", "end_gateway", "dragon_egg"]
+
+[[lights]]
+color = [0.92, 0.90, 1.0]
+blocks = ["end_rod"]
+
+[[particle_lights]]
+particles = ["firefly"]
+color = [0.82, 0.96, 0.35]
+reach = 3.5
+
+# --- Options Pages ---
+
+[[pages]]
+id = "main"
+name = "Photon + IterationT"
+items = ["page:end_sky", "page:sky_clouds", "page:lighting", "page:water", "page:post", ""]
+
+[[pages]]
+id = "end_sky"
+name = "End (IterationT)"
+description = "Planète géante à anneaux, trou noir et brouillard cosmique d'IterationT dans l'End."
+items = ["end_planet_enabled", "end_blackhole_enabled", "end_planet_cycle", "end_planet_angle", "end_doppler", "end_bloom_boost"]
+
+[[pages]]
+id = "sky_clouds"
+name = "Sky & Clouds (Photon)"
+description = "Nuages volumétriques, aurores boréales, galaxie et atmosphère de Photon."
+items = ["volumetric_clouds", "cloud_coverage", "aurora_enabled", "galaxy_enabled", "god_rays", "fog_density"]
+
+[[pages]]
+id = "lighting"
+name = "Lighting & Shadows"
+description = "Ombres douces, lumières colorées, GTAO et végétation."
+items = ["shadows", "shadow_resolution", "shadow_distance", "soft_shadows", "cloud_shadows", "colored_lights", "gtao_strength", "waving_plants", "wind_strength", "rain_puddles"]
+
+[[pages]]
+id = "water"
+name = "Water (Photon)"
+description = "Ondes de surface, réflexions, réfraction et caustiques."
+items = ["water_reflections", "water_waves", "water_clarity", "underwater_caustics"]
+
+[[pages]]
+id = "post"
+name = "Camera & Tonemap"
+description = "Opérateur de tonemapping Photon, bloom, exposition, contraste et FXAA/CAS."
+items = ["tonemap_operator", "exposure", "bloom_strength", "contrast", "saturation", "purkinje_shift", "vignette", "fxaa_cas"]
+
+# --- Options ---
+
+[[options]]
+id = "end_planet_enabled"
+name = "IterationT End Planet"
+description = "Affiche la planète géante à anneaux d'IterationT dans le ciel de l'End."
+type = "bool"
+default = true
+
+[[options]]
+id = "end_blackhole_enabled"
+name = "IterationT Black Hole"
+description = "Affiche le trou noir avec lentille gravitationnelle et disque d'accrétion dans l'End."
+type = "bool"
+default = true
+
+[[options]]
+id = "end_planet_cycle"
+name = "End Planet Orbit Speed"
+description = "Vitesse de rotation orbitale de la planète de l'End (0 = angle fixe)."
+type = "float"
+default = 1.0
+min = 0.0
+max = 4.0
+step = 0.25
+
+[[options]]
+id = "end_planet_angle"
+name = "End Planet Angle"
+description = "Angle initial de la planète et de ses anneaux dans l'End (en degrés)."
+type = "float"
+default = 28.0
+min = 0.0
+max = 360.0
+step = 5.0
+
+[[options]]
+id = "end_doppler"
+name = "Accretion Disc Doppler"
+description = "Effet Doppler relativiste sur le disque d'accrétion du trou noir d'IterationT."
+type = "bool"
+default = true
+
+[[options]]
+id = "end_bloom_boost"
+name = "End Cosmic Bloom"
+description = "Intensité du halo lumineux sur la planète et le trou noir dans l'End."
+type = "float"
+default = 1.2
+min = 0.0
+max = 2.5
+step = 0.1
+
+[[options]]
+id = "volumetric_clouds"
+name = "Volumetric Clouds"
+description = "Nuages 3D Cumulus et Cirrus de Photon."
+type = "bool"
+default = true
+
+[[options]]
+id = "cloud_coverage"
+name = "Cloud Coverage"
+description = "Densité et couverture nuageuse dans l'Overworld."
+type = "float"
+default = 1.0
+min = 0.3
+max = 2.0
+step = 0.1
+
+[[options]]
+id = "aurora_enabled"
+name = "Aurora Borealis"
+description = "Aurores boréales nocturnes de Photon."
+type = "bool"
+default = true
+
+[[options]]
+id = "galaxy_enabled"
+name = "Night Galaxy & Stars"
+description = "Voie lactée et champ d'étoiles à température de corps noir."
+type = "bool"
+default = true
+
+[[options]]
+id = "god_rays"
+name = "Crepuscular Rays"
+description = "Rayons volumétriques du soleil et de la planète de l'End."
+type = "float"
+default = 0.8
+min = 0.0
+max = 2.0
+step = 0.1
+
+[[options]]
+id = "fog_density"
+name = "Atmospheric Fog"
+description = "Densité de la brume atmosphérique et de la brume cosmique de l'End."
+type = "float"
+default = 1.0
+min = 0.0
+max = 2.5
+step = 0.1
+
+[[options]]
+id = "shadows"
+name = "Shadows"
+description = "Ombres portées du soleil et de la lune."
+type = "bool"
+default = true
+
+[[options]]
+id = "shadow_resolution"
+name = "Shadow Resolution"
+description = "Résolution de la shadow map."
+type = "choice"
+values = ["1024", "2048", "4096"]
+default = "2048"
+
+[[options]]
+id = "shadow_distance"
+name = "Shadow Distance"
+description = "Portée des ombres en blocs."
+type = "choice"
+values = ["64", "96", "128", "160"]
+default = "128"
+
+[[options]]
+id = "soft_shadows"
+name = "Soft Shadows (PCSS)"
+description = "Filtrage doux des ombres avec pénombres."
+type = "bool"
+default = true
+
+[[options]]
+id = "cloud_shadows"
+name = "Cloud Shadows"
+description = "Ombres des nuages projetées au sol."
+type = "bool"
+default = true
+
+[[options]]
+id = "colored_lights"
+name = "Colored Blocklight"
+description = "Éclairage coloré par type de bloc et lumière tenue en main."
+type = "bool"
+default = true
+
+[[options]]
+id = "gtao_strength"
+name = "Ambient Occlusion (GTAO)"
+description = "Occlusion ambiante écran dans les recoins et reliefs."
+type = "float"
+default = 0.75
+min = 0.0
+max = 1.5
+step = 0.05
+
+[[options]]
+id = "waving_plants"
+name = "Waving Foliage"
+description = "Mouvement du feuillage, de l'herbe et des lianes dans le vent."
+type = "bool"
+default = true
+
+[[options]]
+id = "wind_strength"
+name = "Wind Speed"
+description = "Force du vent sur les plantes."
+type = "float"
+default = 1.0
+min = 0.0
+max = 2.5
+step = 0.1
+
+[[options]]
+id = "rain_puddles"
+name = "Rain Puddles"
+description = "Flaques d'eau réfléchissantes sous la pluie."
+type = "bool"
+default = true
+
+[[options]]
+id = "water_reflections"
+name = "Water Reflections"
+description = "Miroir d'eau temps réel."
+type = "bool"
+default = true
+
+[[options]]
+id = "water_waves"
+name = "Photon Water Waves"
+description = "Normales de vagues multi-octaves de Photon."
+type = "bool"
+default = true
+
+[[options]]
+id = "water_clarity"
+name = "Water Clarity"
+description = "Clarté et absorption Beer-Lambert de l'eau."
+type = "float"
+default = 1.0
+min = 0.2
+max = 2.0
+step = 0.1
+
+[[options]]
+id = "underwater_caustics"
+name = "Underwater Caustics"
+description = "Caustiques lumineuses et réfraction sous-marine."
+type = "bool"
+default = true
+
+[[options]]
+id = "tonemap_operator"
+name = "Tonemap Operator"
+description = "Courbe de tonemapping tirée de Photon (ACES Fit, Hejl-Burgess, Lottes, Ozius)."
+type = "choice"
+values = ["ACES Fit", "Hejl-Burgess", "Lottes", "Ozius"]
+default = "ACES Fit"
+
+[[options]]
+id = "exposure"
+name = "Exposure"
+description = "Exposition globale de l'image."
+type = "float"
+default = 1.0
+min = 0.5
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "bloom_strength"
+name = "Bloom Intensity"
+description = "Intensité du bloom."
+type = "float"
+default = 0.35
+min = 0.0
+max = 1.5
+step = 0.05
+
+[[options]]
+id = "contrast"
+name = "Contrast"
+description = "Contraste de l'image."
+type = "float"
+default = 1.05
+min = 0.7
+max = 1.5
+step = 0.05
+
+[[options]]
+id = "saturation"
+name = "Saturation"
+description = "Saturation des couleurs."
+type = "float"
+default = 1.08
+min = 0.0
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "purkinje_shift"
+name = "Purkinje Night Shift"
+description = "Décalage scotopique bleuté la nuit dans les zones sombres (Photon)."
+type = "bool"
+default = true
+
+[[options]]
+id = "vignette"
+name = "Vignette"
+description = "Assombrissement doux des bords de l'écran."
+type = "bool"
+default = true
+
+[[options]]
+id = "fxaa_cas"
+name = "FXAA + CAS Sharpening"
+description = "Anticrénelage FXAA et netteté adaptative CAS de Photon."
+type = "bool"
+default = true
