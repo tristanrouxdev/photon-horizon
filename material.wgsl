@@ -182,7 +182,9 @@ fn sample_environment_reflection(refl_dir: vec3<f32>, screen_uv: vec2<f32>, wave
 }
 
 fn material(input: MaterialInput) -> Surface {
-    let albedo = max(input.albedo.rgb * input.tint.rgb, vec3<f32>(0.001));
+    // Preserve full texture contrast & biome tint; lift dark Nether albedos slightly so Nether Bricks & Basalt stay crisp
+    let raw_albedo = max(input.albedo.rgb * input.tint.rgb, vec3<f32>(0.001));
+    let albedo = select(raw_albedo, mix(raw_albedo, pow(raw_albedo, vec3<f32>(0.68)), 0.42), frame.dimension == -1);
     let cam_pos = input.position;
     let world_pos = cam_pos + frame.camera_position;
     let dist = length(cam_pos);
@@ -191,7 +193,7 @@ fn material(input: MaterialInput) -> Surface {
     let block_lm = clamp(input.light.x, 0.0, 1.0);
     let sky_lm = clamp(input.light.y, 0.0, 1.0);
     let sky_vis = smoothstep(0.05, 0.92, sky_lm);
-    let ao = clamp(luminance(input.tint.rgb) * 1.15, 0.35, 1.0);
+    let ao = 1.0;
 
     // ------------------------------------------------------------------------
     // WATER SHADING (Photon Beer-Lambert Absorption + Refraction + Reflections)
@@ -269,6 +271,15 @@ fn material(input: MaterialInput) -> Surface {
         if spec.a < 0.996 {
             emissive = max(emissive, spec.a);
         }
+    } else if dist < 48.0 {
+        // Auto-generated texel micro-relief when using vanilla textures without LabPBR
+        let t = input.tangent.xyz;
+        let b = cross(n, t) * input.tangent.w;
+        let luma_here = luminance(input.albedo.rgb);
+        let d_u = dpdx(luma_here);
+        let d_v = dpdy(luma_here);
+        let bump_fade = (1.0 - smoothstep(16.0, 48.0, dist)) * 0.35;
+        n = normalize(n - (t * d_u + b * d_v) * bump_fade);
     }
 
     // Photon Rain Puddles on upward-facing outdoor surfaces
@@ -283,10 +294,12 @@ fn material(input: MaterialInput) -> Surface {
 
     let wet_albedo = albedo * (1.0 - puddle_factor * 0.32);
 
-    // Directional Sun/Moon/End-Planet Light
+    // Directional Sun/Moon/End-Planet/Nether Light
     var l_dir = normalize(frame.light_direction);
     if frame.dimension == 1 {
         l_dir = end_light_dir();
+    } else if frame.dimension == -1 {
+        l_dir = normalize(vec3<f32>(0.34, 0.84, 0.42));
     }
 
     let direct_col = photon_direct_light();
@@ -305,11 +318,12 @@ fn material(input: MaterialInput) -> Surface {
     let back_scatter = pow(clamp(dot(v, -l_dir), 0.0, 1.0), 3.0) * 0.65 + max(0.0, dot(-n, l_dir)) * 0.35;
     let sss_term = wet_albedo * sss * (0.35 + back_scatter) * RCP_PI;
 
-    let direct_lighting = (wet_albedo * diff + sss_term + spec_brdf) * direct_col * shadow_rgb * max(sky_vis, f32(frame.dimension == 1) * 0.85);
+    let dim_sky_vis = select(sky_vis, 0.90, frame.dimension != 0);
+    let direct_lighting = (wet_albedo * diff + sss_term + spec_brdf) * direct_col * shadow_rgb * dim_sky_vis;
 
     // Hemispherical sky ambient lighting
-    let hemi = 0.65 + 0.35 * n.y;
-    let sky_ambient = wet_albedo * amb_col * hemi * ao * select(sky_vis, 0.85, frame.dimension != 0);
+    let hemi = 0.68 + 0.32 * n.y;
+    let sky_ambient = wet_albedo * amb_col * hemi * ao * select(max(sky_vis, 0.08), 0.92, frame.dimension != 0);
 
     // Blocklight + Colored Point Lights + Handheld Dynamic Light
     let bl_falloff = get_blocklight_falloff(block_lm);

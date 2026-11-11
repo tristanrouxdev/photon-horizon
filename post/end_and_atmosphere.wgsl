@@ -30,16 +30,15 @@ fn render_iteration_end_sky(ray_dir: vec3<f32>, tf: f32, pixel: vec2<f32>) -> ve
     let ldir = end_light_dir();
     let dither = interleaved_gradient_noise(pixel);
 
-    // 1. IterationT Gravitational-Lensed Black Hole + Accretion Disc + Stars
-    if end_blackhole_enabled {
-        sky_col = it_black_hole_accretion_disc(sky_col, ray_dir, ldir, dither, end_doppler, true);
-    } else {
-        sky_col += it_calculate_stars(ray_dir);
-    }
-
-    // 2. IterationT Giant Ringed Planet + Ring Shadow + Chandrasekhar Atmosphere (PlanetEnd2)
+    // 1. IterationT Giant Ringed Planet + Ring Shadow + Chandrasekhar Atmosphere (PlanetEnd2)
+    sky_col += it_calculate_stars(ray_dir);
     if end_planet_enabled {
         sky_col = it_planet_end2(sky_col, frame.camera_position, ray_dir, ldir, tf);
+    }
+
+    // 2. IterationT Gravitational-Lensed Black Hole + Accretion Disc
+    if end_blackhole_enabled {
+        sky_col = it_black_hole_accretion_disc(sky_col, ray_dir, ldir, dither, end_doppler, false);
     }
 
     // 3. Atmospheric End Horizon Glow (EndFog at infinity)
@@ -198,19 +197,24 @@ fn post(input: PostInput) -> vec4<f32> {
             let uw_fog = vec3<f32>(0.03, 0.16, 0.24) * max(luminance(ambient_color()), 0.08);
             col = mix(uw_fog, col, exp(-dist * 0.055));
         } else if frame.dimension == 0 {
-            let height_density = exp(-max(world_pos.y - 60.0, 0.0) * 0.022);
-            let rain_boost = 1.0 + frame.rain * 2.4;
-            let opt_depth = dist * 0.0018 * fog_density * height_density * rain_boost;
+            // Keep foreground & mid-ground 100% sharp (aerial perspective starts after 24 blocks)
+            let fog_dist = max(0.0, dist - 24.0);
+            let height_density = exp(-max(world_pos.y - 64.0, 0.0) * 0.025);
+            let rain_boost = 1.0 + frame.rain * 2.2;
+            let opt_depth = fog_dist * 0.0012 * fog_density * height_density * rain_boost;
             let fog_factor = 1.0 - exp(-opt_depth);
 
             let sky_fog_col = photon_sky_atmosphere(vec3<f32>(ray_dir.x, max(ray_dir.y, 0.01), ray_dir.z));
-            col = mix(col, sky_fog_col, clamp(fog_factor, 0.0, 0.88));
+            col = mix(col, sky_fog_col, clamp(fog_factor, 0.0, 0.82));
 
-            let border_fade = smoothstep(frame.render_distance * 0.82, frame.render_distance * 0.99, dist);
+            let border_fade = smoothstep(frame.render_distance * 0.84, frame.render_distance * 0.99, dist);
             col = mix(col, sky_fog_col, border_fade);
         } else {
-            let nether_fog = 1.0 - exp(-dist * 0.0085 * fog_density);
-            col = mix(col, frame.fog_color, clamp(nether_fog, 0.0, 0.95));
+            // Nether: crystal-clear foreground & mid-ground, very light distant haze so structures & blocks stay 100% readable
+            let nether_dist = smoothstep(42.0, max(frame.render_distance * 0.98, 96.0), dist);
+            let nether_fog = nether_dist * nether_dist * clamp(0.22 * fog_density, 0.0, 0.42);
+            let nether_haze_col = mix(frame.fog_color * 0.35, vec3<f32>(0.16, 0.11, 0.12), 0.65);
+            col = mix(col, nether_haze_col, nether_fog);
         }
     }
 

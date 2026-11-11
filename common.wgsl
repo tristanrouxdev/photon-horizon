@@ -218,7 +218,8 @@ fn photon_atmosphere_transmittance(mu: f32) -> vec3<f32> {
 // Photon's `get_sun_tint` & `get_light_color` (lighting/colors/light_color.glsl)
 fn photon_direct_light() -> vec3<f32> {
     if frame.dimension == -1 {
-        return vec3<f32>(0.0);
+        // Crisp warm-white top directional light in the Nether for clear 3D block & structure relief
+        return vec3<f32>(0.85, 0.74, 0.66);
     }
     if frame.dimension == 1 {
         // End direct light from IterationT's ringed planet & accretion disc
@@ -248,7 +249,8 @@ fn photon_direct_light() -> vec3<f32> {
 
 fn photon_ambient_light() -> vec3<f32> {
     if frame.dimension == -1 {
-        return vec3<f32>(0.42, 0.18, 0.10);
+        // Bright neutral-warm ambient so Nether Bricks, Basalt, Quartz, Gold & Warped Nylium stay distinct and readable
+        return vec3<f32>(0.62, 0.56, 0.54);
     }
     if frame.dimension == 1 {
         // Cosmic violet-indigo ambient + warm golden bounce from IterationT's End planet
@@ -539,25 +541,23 @@ fn it_disc(a: f32, s: f32, h: f32) -> f32 {
     return d * d;
 }
 
-// 1D procedural noise for IterationT's planetary rings (5 octaves)
+// Band-limited 1D procedural noise for IterationT's planetary rings (anti-aliased, zero Moire)
 fn it_ring_fbm(ray_radius: f32) -> f32 {
-    let oct_alpha = 0.5;
-    let oct_scale = 4.0;
-    let oct_shift = (oct_alpha / oct_scale) / 5.0;
     var accum = 0.0;
-    var alpha = 0.5;
-    var pos = ray_radius * 0.5 + 0.69;
-    for (var i = 0; i < 5; i++) {
-        // High-frequency smooth 1D band noise matching noisetex.z
-        let p64 = pos * 64.0;
-        let pi = floor(p64);
-        let pf = curve_f(fract(p64));
+    var alpha = 0.52;
+    var pos = ray_radius * 0.55 + 0.69;
+    for (var i = 0; i < 4; i++) {
+        let p_band = pos * 14.0;
+        let pi = floor(p_band);
+        let pf = curve_f(fract(p_band));
         let n = mix(hash21(vec2<f32>(pi, 13.7)), hash21(vec2<f32>(pi + 1.0, 13.7)), pf);
         accum += alpha * n;
-        pos = pos * oct_scale;
-        alpha *= oct_alpha;
+        pos = pos * 2.35 + 0.17;
+        alpha *= 0.48;
     }
-    return accum + oct_shift;
+    // Cassini-style ring division gap at radius ~2.12
+    let cassini_gap = 1.0 - 0.72 * exp(-sqr((ray_radius - 2.12) * 18.0));
+    return accum * cassini_gap;
 }
 
 // IterationT EndSky.glsl: PlanetEnd2 (The Giant Ringed Planet in The End)
@@ -628,9 +628,9 @@ fn it_planet_end2(color_in: vec3<f32>, eye_in: vec3<f32>, ray_dir_in: vec3<f32>,
         let origin = ring_origin + surface_pos / r_ground;
         let ray_pos = ray_plane_intersection(origin, light_dir_ring, vec3<f32>(0.0, 0.0, 1.0));
         let ray_rad = length(ray_pos);
-        if ray_rad > 1.6 && ray_rad < 2.6 && dot(ray_pos - origin, light_dir_ring) > 0.0 {
-            let fbm_val = it_ring_fbm(ray_rad);
-            let shadow_atten = exp(-cube_f(saturate_f(fbm_val - 0.1) * 1.5) * smoothstep(1.6, 1.76, ray_rad));
+        if ray_rad > 1.22 && ray_rad < 1.66 && dot(ray_pos - origin, light_dir_ring) > 0.0 {
+            let fbm_val = it_ring_fbm(ray_rad * 1.35);
+            let shadow_atten = exp(-cube_f(saturate_f(fbm_val - 0.1) * 1.5) * smoothstep(1.22, 1.30, ray_rad));
             surface *= shadow_atten;
         }
 
@@ -658,7 +658,7 @@ fn it_planet_end2(color_in: vec3<f32>, eye_in: vec3<f32>, ray_dir_in: vec3<f32>,
 
     color += surface * 0.6;
 
-    // Planetary rings in the sky
+    // Planetary rings in the sky (bounded to [1.22, 1.66] < eye.y/r_ground so they frame the planet cleanly)
     let in_ring = saturate_f(abs(ring_angle) * 3000.0 - 0.8);
     var ring = 0.0;
     var transmittance = 1.0;
@@ -668,15 +668,15 @@ fn it_planet_end2(color_in: vec3<f32>, eye_in: vec3<f32>, ray_dir_in: vec3<f32>,
         let ring_pos = ray_plane_intersection(origin, ray_dir_ring, vec3<f32>(0.0, 0.0, 1.0));
         let ray_rad = length(ring_pos);
 
-        if ray_rad > 1.6 && ray_rad < 2.6 {
-            let fbm_val = it_ring_fbm(ray_rad);
-            ring += cube_f(saturate_f(fbm_val - 0.1) * 1.5);
-            ring *= smoothstep(1.6, 1.76, ray_rad);
+        if ray_rad > 1.22 && ray_rad < 1.66 && dot(ring_pos - origin, ray_dir_ring) > 0.0 {
+            let fbm_val = it_ring_fbm(ray_rad * 1.35);
+            ring += cube_f(saturate_f(fbm_val - 0.08) * 1.55);
+            ring *= smoothstep(1.22, 1.28, ray_rad) * (1.0 - smoothstep(1.58, 1.66, ray_rad));
 
             if ring_pos.y < 0.0 && ground_hit.y > 0.0 {
                 ring = 0.0;
             } else {
-                transmittance *= exp2(-ring * 3.0);
+                transmittance *= exp2(-ring * 2.6);
             }
 
             let d = length(cross(light_dir_ring, ring_pos));
@@ -722,6 +722,35 @@ fn it_disc_fbm(pos_in: vec3<f32>, shift: vec3<f32>) -> f32 {
     return accum + 0.13;
 }
 
+fn it_eval_accretion_disc_point(cross_pos: vec3<f32>, shift: vec3<f32>, doppler: bool) -> vec4<f32> {
+    let r = length(cross_pos.xz);
+    if r <= 0.94 || r >= 2.85 {
+        return vec4<f32>(0.0);
+    }
+    let p = atan2(-cross_pos.z, -cross_pos.x);
+    let radial_norm = saturate_f((r - 0.94) / 1.91);
+    let inner_edge = smoothstep(0.94, 1.15, r);
+    let outer_edge = 1.0 - smoothstep(1.85, 2.85, r);
+    let window = inner_edge * outer_edge * outer_edge;
+
+    let spiral_angle = p + log(max(r, 0.5)) * 4.5 - frame.time * 0.18;
+    let disc_coord = vec3<f32>(r * 3.0, sin(spiral_angle) * 1.4, cos(spiral_angle) * 1.4);
+    let fbm = it_disc_fbm(disc_coord, shift);
+    let filament = 0.70 + 0.30 * sin(r * 7.5 + fbm * 3.0);
+    let density = saturate_f(window * filament * (0.50 + 0.55 * fbm));
+
+    let heat = 1.0 - radial_norm;
+    let temp = mix(5200.0, 11500.0, pow(heat, 1.25));
+    var glow = blackbody(temp) * mix(0.35, 4.4, heat * heat * heat) * (density * density);
+
+    if doppler {
+        glow *= sin(p - 1.05) * 0.45 + 1.05;
+    }
+
+    let alpha = saturate_f(density * 0.92);
+    return vec4<f32>(glow, alpha);
+}
+
 fn it_black_hole_accretion_disc(
     color_in: vec3<f32>,
     ray_dir_in: vec3<f32>,
@@ -731,92 +760,82 @@ fn it_black_hole_accretion_disc(
     with_stars: bool
 ) -> vec3<f32> {
     var color = color_in;
-    // 28 steps at 0.28 step_length covers the exact 8-unit volume around the singularity while staying fast
-    let steps = 28;
-    let r_steps = 1.0 / 28.0;
-    let step_len = 0.28;
+    if with_stars {
+        color += it_calculate_stars(ray_dir_in);
+    }
 
-    let disc_radius = 2.25;
-    let disc_width = 3.5;
-    let disc_inner = disc_radius - disc_width * 0.5;
+    let bh_center = normalize(light_dir);
+    let cos_fw = dot(ray_dir_in, bh_center);
+    if cos_fw <= 0.15 {
+        return color;
+    }
 
-    let eye = -light_dir * 8.0;
-    var ray_dir = ray_dir_in;
-    var ray_pos = eye + ray_dir * (3.0 + step_len * dither);
-    let rotation = it_rotate_matrix(0.1, 0.0, -0.35);
+    // Orthonormal basis centered on bh_center, tilted by roll = -0.26 rad and pitch = +0.13 rad
+    let bh_right0 = normalize(cross(bh_center, vec3<f32>(0.0, 1.0, 0.0)));
+    let bh_up0 = cross(bh_right0, bh_center);
+    let cr = cos(-0.26);
+    let sr = sin(-0.26);
+    let bh_right = bh_right0 * cr - bh_up0 * sr;
+    let bh_up_tilt = bh_right0 * sr + bh_up0 * cr;
 
-    var result = vec3<f32>(0.0);
+    let cp = cos(0.13);
+    let sp = sin(0.13);
+    let disc_normal = bh_up_tilt * cp - bh_center * sp;
+    let disc_fwd = bh_up_tilt * sp + bh_center * cp;
+
+    let eye = -bh_center * 8.0;
+    let t_closest = dot(-eye, ray_dir_in);
+    let perp_vec = eye + ray_dir_in * t_closest;
+    let b = length(perp_vec);
+    let perp_dir = perp_vec / max(b, 1e-5);
+
+    let eye_d = vec3<f32>(dot(eye, bh_right), dot(eye, disc_normal), dot(eye, disc_fwd));
+    let dir_d = vec3<f32>(dot(ray_dir_in, bh_right), dot(ray_dir_in, disc_normal), dot(ray_dir_in, disc_fwd));
+    let p0_d = vec3<f32>(dot(perp_vec, bh_right), dot(perp_vec, disc_normal), dot(perp_vec, disc_fwd));
+
     var transmittance = 1.0;
+    var result = vec3<f32>(0.0);
     let shift = frame.time * vec3<f32>(0.03, 0.05, 0.0);
 
-    for (var i = 0; i < 28; i++) {
-        if transmittance < 0.001 {
-            break;
-        }
-        // WarpSpace gravitational lensing around origin (0,0,0)
-        let sing_dist_sq = dot(ray_pos, ray_pos) + 0.00001;
-        let warp_factor = 1.0 / sing_dist_sq;
-        let sing_vec = normalize(-ray_pos);
-        ray_dir = normalize(ray_dir + sing_vec * (warp_factor * 0.084));
-        ray_pos += ray_dir * step_len;
-
-        let disc_pos = rotation * ray_pos;
-        let r = length(disc_pos);
-        let p = atan2(-disc_pos.z, -disc_pos.x);
-        let h = disc_pos.y;
-
-        let radial_grad = 1.0 - saturate_f((r - disc_inner) / disc_width * 0.5);
-        let dist = abs(h);
-        let disc_thick = max(0.1 * radial_grad, 1e-4);
-
-        let fr = abs(r - disc_inner) + 0.4;
-        let fr2 = fr * fr;
-        let fade = fr2 * fr2 * 0.04;
-        var bloom_factor = 1.0 / (h * h * 40.0 + fade + 0.00002);
-        bloom_factor *= saturate_f(2.0 - dist / disc_thick);
-        bloom_factor *= bloom_factor;
-
-        let dr = it_pcurve(saturate_f(radial_grad));
-        var density = dr * saturate_f(1.0 - dist / disc_thick);
-        density = saturate_f(density * 0.7);
-        density = saturate_f(density + bloom_factor * 0.1);
-
-        if density > 0.0001 {
-            let disc_coord = vec3<f32>(r, p * (1.0 - radial_grad * 0.5) * 0.25, h * 0.1) * 3.5;
-            var fbm = it_disc_fbm(disc_coord, shift);
-            fbm = fbm * fbm;
-            fbm = fbm * fbm;
-            density *= fbm * dr;
-
-            let gr = 1.0 - radial_grad;
-            let gr2 = gr * gr;
-            let glow_strength = 1.0 / (gr2 * gr2 * 400.0 + 0.002);
-            var glow = blackbody(2700.0 + glow_strength * 50.0) * glow_strength;
-
-            if doppler {
-                glow *= sin(p - 1.07) * 0.75 + 1.0;
+    // (A) Front half of the accretion disc (passes IN FRONT of the black hole shadow!)
+    if dir_d.y < -1e-5 {
+        let t_front = -eye_d.y / dir_d.y;
+        if t_front > 0.0 {
+            let hit_front = eye_d + dir_d * t_front;
+            if hit_front.z < 0.15 {
+                let sample_f = it_eval_accretion_disc_point(hit_front, shift, doppler);
+                result += transmittance * sample_f.rgb;
+                transmittance *= 1.0 - sample_f.a;
             }
-
-            let step_trans = exp2(-density * 9.8);
-            let integral = 1.0 - step_trans;
-            transmittance *= step_trans;
-            result += integral * transmittance * glow;
         }
-
-        let torus_d = length(vec2<f32>(length(disc_pos.xz) - 1.0, disc_pos.y - 0.05));
-        var bloom_disc = 1.0 / (pow(max(torus_d, 0.001), 3.5) + 0.001);
-        let col_ring = blackbody(12000.0);
-        bloom_disc *= select(0.0, 1.0, r >= 0.5);
-        result += col_ring * bloom_disc * 0.1 * transmittance;
     }
 
-    result *= r_steps;
-    if with_stars {
-        color += it_calculate_stars(ray_dir);
+    // (B) Event Horizon Shadow & Relativistic Einstein Photon Ring at t = t_closest
+    let r_shadow = 0.76;
+    if b < r_shadow {
+        transmittance = 0.0;
+    } else {
+        let photon_ring = exp(-(b - r_shadow) * 34.0) * 1.95;
+        result += blackbody(9800.0) * (photon_ring * transmittance);
+
+        // (C) Gravitational-lensed far side of the accretion disc (Upper & Lower Gargantua Arches!)
+        let defl = 0.54 / max(b - 0.56, 0.08);
+        let dir_lensed = normalize(ray_dir_in - perp_dir * defl);
+        let dir_lensed_d = vec3<f32>(dot(dir_lensed, bh_right), dot(dir_lensed, disc_normal), dot(dir_lensed, disc_fwd));
+        if abs(dir_lensed_d.y) > 1e-5 {
+            let t_back = -p0_d.y / dir_lensed_d.y;
+            if t_back >= 0.0 {
+                let hit_back = p0_d + dir_lensed_d * t_back;
+                if hit_back.z >= -0.15 {
+                    let sample_b = it_eval_accretion_disc_point(hit_back, shift, doppler);
+                    result += transmittance * sample_b.rgb;
+                    transmittance *= 1.0 - sample_b.a;
+                }
+            }
+        }
     }
-    color *= transmittance;
-    color += result;
-    return color;
+
+    return color * transmittance + result;
 }
 
 // IterationT EndSky.glsl: EndFog
